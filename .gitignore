@@ -1,0 +1,36 @@
+# Build directories
+build/
+cmake-build-*/
+Debug/
+Release/
+x64/
+
+# CMake artifacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# Executables and object files
+main
+test_*
+*.exe
+*.out
+*.app
+
+# IDE / editor junk
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Doxygen output
+docs/
+html/
+latex/
+
+# Results (regenerated on run)
+/results/*.txt
+!/results/.gitkeep
