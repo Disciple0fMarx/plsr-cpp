@@ -1,0 +1,26 @@
+PLSR-CPP - Partial Least Squares Regression implementation in C++
+================================================================
+
+Primary Authors
+---------------
+Dhiaa Eddine Bahri <dhya.bahri@proton.me>  
+   - PLSR NIPALS algorithm
+   - Project structure, CMake, Makefile
+   - Main integration and build system
+   - Documentation and testing
+
+Malek Rihani <malek.rihani090@gmail.com>  
+   - Functional data generator (sine waves)
+   - Nonlinear response generator (sigmoid)
+   - Simulation design
+   - Validation and result interpretation
+
+Academic Project
+----------------
+This software was developed as part of the coursework for the module:
+"Statistics and Data Analysis"
+M.Sc. in Data Science and Information Retrieval - Year 2
+University of Manouba <https://uma.rnu.tn/> - Higher Institute of Multimedia Arts <https://isa2m.rnu.tn/>
+Academic Year 2025–2026
+
+Supervising Professor: Yousri Henchiri <yousri.henchiri@isamm.uma.tn"
