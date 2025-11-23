@@ -125,15 +125,15 @@ results/
 
 **Dhiaa Eddine Bahri** \
 *dhya.bahri@proton.me* \
-Main contributions: PLSR algorithm, project architecture, main integration and build system \
+Main contributions: PLSR algorithm, project architecture, main integration and build system
 
 **Malek Rihani** \
 *malek.rihani090@gmail.com* \
-Main contributions: Functional data and nonlinear response generators \
+Main contributions: Functional data and nonlinear response generators
 
 Academic year 2025-2026 \
 M. Sc. in Data Science and Information Retrieval \
-[University of Manouba](https://uma.rnu.tn/) — [Higher Institute of Multimedia Arts](https://isa2m.rnu.tn) \
+[University of Manouba](https://uma.rnu.tn/) — [Higher Institute of Multimedia Arts](https://isa2m.rnu.tn)
 
 ## Citation
 
