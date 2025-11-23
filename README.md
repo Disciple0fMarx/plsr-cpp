@@ -11,9 +11,13 @@ Perfect for teaching, research, benchmarking, or extending to real functional da
 ## Scientific Motivation
 
 We generate functional predictors  
+
 $$X_i(t_j) = A_i \cdot \sin(2\pi t_j) + \varepsilon_{ij}, \quad t_j \in [0,1], \quad i=1,\dots,N$$
+
 with latent amplitude $A_i \sim \mathcal{U}[0.5, 2.5]$, and a scalar response  
+
 $$y_i = \sigma(\beta_0 + \beta_1 A_i) + \delta_i$$  
+
 where $\sigma$ is the logistic sigmoid.  
 This creates a **strong but nonlinear relationship** that ordinary least squares and PCA fail to capture efficiently — while **PLSR recovers it with just 1–2 components**.
 
@@ -119,17 +123,17 @@ results/
 
 ## Authors
 
-**Dhiaa Eddine Bahri**
-*dhya.bahri@proton.me*
-Main contributions: PLSR algorithm, project architecture, main integration and build system
+**Dhiaa Eddine Bahri** \
+*dhya.bahri@proton.me* \
+Main contributions: PLSR algorithm, project architecture, main integration and build system \
 
-**Malek Rihani**
-*malek.rihani090@gmail.com*
-Main contributions: Functional data and nonlinear response generators
+**Malek Rihani** \
+*malek.rihani090@gmail.com* \
+Main contributions: Functional data and nonlinear response generators \
 
-Academic year 2025-2026
-M. Sc. in Data Science and Information Retrieval
-[University of Manouba](https://uma.rnu.tn/) — [Higher Institute of Multimedia Arts](https://isa2m.rnu.tn)
+Academic year 2025-2026 \
+M. Sc. in Data Science and Information Retrieval \
+[University of Manouba](https://uma.rnu.tn/) — [Higher Institute of Multimedia Arts](https://isa2m.rnu.tn) \
 
 ## Citation
 
