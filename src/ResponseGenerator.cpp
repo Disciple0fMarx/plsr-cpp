@@ -21,29 +21,37 @@
 #include <cmath>
 
 
-ResponseGenerator::ResponseGenerator(const Eigen::VectorXd& amplitudes,
-				     const Config& config)
+ResponseGenerator::ResponseGenerator(const Eigen::MatrixXd& X,
+									 double T,
+				    				 const Config& config)
 	: config_(config),
-	  A_(amplitudes),
+	  X_(X),
+	  T_(T),
 	  rng_(config.seed),
 	  noise_dist_(0.0, config.noise_std)
 {
-	y_true_.resize(A_.size());
-	y_.resize(A_.size());
+	const int P = X_.cols();
+	beta_true_.resize(P);
+
+	const double dt = T_ / (P - 1);
+	const double pi = std::numbers::pi_v<double>;
+	const double omega = 2.0 * pi / T;
+	for (int j = 0; j < P; ++j) {
+		double t_j = j * dt;
+		beta_true_(j) = config_.c_sin * std::sin(omega * t_j); 
+	}
+
+	lin_pred_.resize(X_.rows());
+	y_.resize(X_.rows());
 }
 
 
 void ResponseGenerator::generate()
 {
-	const double b0 = config_.beta0;
-	const double b1 = config_.beta1;
+	lin_pred_ = X_ * beta_true_;
+	lin_pred_.array() += config_.beta0;
 
-	for (int i = 0; i < A_.size(); ++i) {
-		double z = b0 + b1 * A_(i);
-		y_true_(i) = 1.0 / (1.0 + std::exp(-z));
-	}
-
-	y_ = y_true_;
+	y_ = lin_pred_;
 
 	if (config_.add_noise) {
 		for (int i = 0; i < y_.size(); ++i) {
@@ -51,4 +59,3 @@ void ResponseGenerator::generate()
 		}
 	}
 }
-

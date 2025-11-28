@@ -26,11 +26,20 @@
 
 /**
  * @class ResponseGenerator
- * @brief Generates a scalar response y from latent amplitudes A
- * via a nonlinear link function.
+ * @brief Generates a scalar response y from functional predictors X(t)
  *
- * True model: y_i = σ(β₀ + β₁ · A_i) + ε
- * where σ(x) = 1/(1+exp(-x)) is the logistic sigmoid.
+ * The true data-generating model is:
+ *
+ *     y_i = β₀ + ∫ β(t) X_i(t) dt + δ_i   (linear predictor)
+ * 
+ * Programmatically, this translates to:
+ *
+ *     y_i = β₀ + ∑ β(t_j) X_i(t_j) + δ_i
+ *
+ * where:
+ *   • t_j = j·Δt,  Δt = T/(P-1)   (equidistant grid)
+ *   • β(t) = c ⋅ sin(2π t / T)    (true coefficient function (pure sine wave))
+ *   • δ_i is Gaussian noise      (optional)
  *
  * @authors Dhiaa Eddine Bahri <dhya.bahri@proton.me>
  *          Malek Rihani <malek.rihani090@gmail.com>
@@ -41,7 +50,7 @@ class ResponseGenerator {
 	public:
 		struct Config {
 			double beta0 = 0.0;       ///< Intercept of the linear predictor
-			double beta1 = 4.0;       ///< Slope (controls steepness)
+			double c_sin = 5.0;       ///< Amplitude of the sinusoidal coefficient function β(t) = c_sin * sin(2πt)
 			bool add_noise = true;    ///< Add Gaussian noise to the response?
 			double noise_std = 0.05;  ///< Standard deviation of response noise
 			unsigned int seed = 999;  ///< RNG seed for reproducibility
@@ -49,20 +58,23 @@ class ResponseGenerator {
 		};
 
 		/**
-		 * @brief Construct generator from true latent amplitudes and model configuration
-		 * @param amplitudes Reference to the vector of true A_i (from DataGenerator)
+		 * @brief Construct generator
+		 * @param X The data matrix
+		 * @param T The period of X's sine waves
 		 * @param config     Model and noise parameters
 		 */
-		explicit ResponseGenerator(const Eigen::VectorXd& amplitudes,
+		explicit ResponseGenerator(const Eigen::MatrixXd& X,
+								   double T,
 					   			   const Config& config);
 
 		/**
-		 * @brief Factory method using sensible default parameters (β₀=0, β₁=4, mild noise)
-		 * @param amplitudes True latent amplitudes A
+		 * @brief Factory method using the default 
+		 * @param X The data matrix
+		 * @param T The period of X's sine waves
 		 * @return Configured ResponseGenerator
 		 */
-		static ResponseGenerator make_default(const Eigen::VectorXd& amplitudes) {
-			return ResponseGenerator(amplitudes, Config{});
+		static ResponseGenerator make_default(const Eigen::MatrixXd& X, double T) {
+			return ResponseGenerator(X, T, Config{});
 		};
 
 		/**
@@ -77,14 +89,18 @@ class ResponseGenerator {
 		const Eigen::VectorXd& y() const noexcept { return y_; }
 
 		/** @brief Noise-free "true" response σ(β₀ + β₁ A) (N × 1) */
-		const Eigen::VectorXd& y_true() const noexcept { return y_true_; }  // noiseless
+		const Eigen::VectorXd& beta_true() const noexcept { return beta_true_; }  // noiseless
+
+		const Eigen::VectorXd& linear_predictor() const noexcept { return lin_pred_; }
 
 	private:
 		Config config_;
-		const Eigen::VectorXd& A_;  ///< reference to true latent amplitudes
-		
-		Eigen::VectorXd y_true_;    ///< sigmoid output without noise
-		Eigen::VectorXd y_;         ///< final observed response (may include noise)
+		const Eigen::MatrixXd& X_;
+		double T_;                                 // ← now stored
+
+		Eigen::VectorXd beta_true_;
+		Eigen::VectorXd lin_pred_;
+		Eigen::VectorXd y_;
 		
 		std::mt19937 rng_;          ///< Random number engine
 		std::normal_distribution<double> noise_dist_;  ///< noise distribution

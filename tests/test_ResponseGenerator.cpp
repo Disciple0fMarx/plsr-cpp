@@ -19,56 +19,215 @@
  */
 #include <iostream>
 #include <iomanip>
+#include <Eigen/Dense>
+#include <cmath>
+#include <numbers>
+
+#include "../include/DataGenerator.hpp"
 #include "../include/ResponseGenerator.hpp"
 
-
 int main() {
-	std::cout << std::fixed << std::setprecision(12);
-	std::cout << "=== ResponseGenerator Unit Tests ===\n\n";
+    std::cout << std::fixed << std::setprecision(12);
+    std::cout << "=== ResponseGenerator Unit Tests ===\n\n";
 
-	bool all_ok = true;
+    bool all_ok = true;
+    const double T = 1.0;
 
-	// Create fake amplitudes (monotonically increasing)
-	Eigen::VectorXd A = Eigen::VectorXd::LinSpaced(200, 0.4, 2.6);
+    // ==================================================================
+    // Test 1: beta_true_ is exactly c_sin * sin(2πt/T)
+    // ==================================================================
+    {
+        std::cout << "Test 1: beta_true_ matches c_sin * sin(2πt/T)\n";
 
-	// Test 1: No noise, steep sigmoid → perfect monotonocity and [0, 1] range
-	{
-		ResponseGenerator::Config cfg;
-		cfg.beta0 = -6.0;  // center at A = 1.5
-		cfg.beta1 = 8.0;   // steep transition
-		cfg.add_noise = false;
+        auto dg = DataGenerator::make_default();
+        dg.generate();
 
-		ResponseGenerator rg(A, cfg);
-		rg.generate();
+        ResponseGenerator::Config cfg;
+        cfg.c_sin = 7.0;
+        cfg.beta0 = -2.5;
 
-		bool monotonic = true;
-		for (int i = 1; i < rg.y().size(); ++i) {
-			if (rg.y()(i) <= rg.y()(i-1)) monotonic = false;
-		}
+        ResponseGenerator rg(dg.X(), T, cfg);
 
-		bool in_range = (rg.y().array() >= 0.0).all() && (rg.y().array() <= 1.0).all();
+        const auto& beta = rg.beta_true();
+        const auto& t    = dg.t();
+        // double T = dg.T;
 
-		std::cout << "No noise: monotonic ........ " << (monotonic ? "PASS" : "FAIL") << "\n";
-		std::cout << "No noise: in [0, 1] ........ " << (in_range ? "PASS" : "FAIL") << "\n";
-		all_ok &= (monotonic & in_range);
-	}
+        bool ok = true;
+        for (int j = 0; j < beta.size(); ++j) {
+            double t_j = t(j);
+            double expected = 7.0 * std::sin(2.0 * std::numbers::pi * t_j / T);
+            if (std::abs(beta(j) - expected) > 1e-12) {
+                ok = false;
+                break;
+            }
+        }
 
-	// Test 2: With noise → mean(y) ≈ mean(y_true), std reasonable
-	{
-		ResponseGenerator rg = ResponseGenerator::make_default(A);
-		rg.generate();
+        if (ok) {
+            std::cout << "  PASS: Coefficient function beta(t) is exact\n";
+        } else {
+            std::cerr << "  FAIL: beta_true_ does not match theoretical sin wave\n";
+            all_ok = false;
+        }
+    }
 
-		double mean_diff = (rg.y() - rg.y_true()).mean();
-		double std_emp = std::sqrt((rg.y() - rg.y_true()).squaredNorm() / rg.y().size());
+    std::cout << "\n";
 
-		bool ok = std::abs(mean_diff) < 0.01 && std::abs(std_emp - 0.05) < 0.02;
+    // ==================================================================
+    // Test 2: linear_predictor = X * beta_true_ + beta0
+    // ==================================================================
+    {
+        std::cout << "Test 2: linear_predictor = X * beta_true_ + beta0\n";
 
-		std::cout << "With noise: std ≈ 0.05 ..... " << (ok ? "PASS" : "FAIL") << " (actual std = " << std_emp << ")\n";
-		all_ok &= ok;
-	}
+        auto dg = DataGenerator::make_default();
+        dg.generate();
 
-	std::cout << "\n";
-	std::cout << (all_ok ? "ALL TESTS PASSED!\n" : "SOME TESTS FAILED!\n");
-	return all_ok ? 0 : 1;
+        ResponseGenerator rg(dg.X(), T, ResponseGenerator::Config{.beta0 = 1.5, .c_sin = 3.0});
+        rg.generate();
+
+        Eigen::VectorXd manual_eta = dg.X() * rg.beta_true();
+        manual_eta.array() += 1.5;
+
+        double diff = (rg.linear_predictor() - manual_eta).norm();
+
+        std::cout << "   ||computed η - manual η|| = " << diff << "\n";
+
+        if (diff < 1e-12) {
+            std::cout << "  PASS: Linear predictor computed correctly\n";
+        } else {
+            std::cerr << "  FAIL: Linear predictor does not match X*beta + beta0\n";
+            all_ok = false;
+        }
+    }
+
+    std::cout << "\n";
+
+    // ==================================================================
+    // Test 3: Noiseless case → y == linear_predictor
+    // ==================================================================
+    {
+        std::cout << "Test 3: Noiseless response equals linear predictor\n";
+
+        auto dg = DataGenerator::make_default();
+        dg.generate();
+
+        ResponseGenerator::Config cfg;
+        cfg.add_noise = false;
+
+        ResponseGenerator rg(dg.X(), T, cfg);
+        rg.generate();
+
+        double diff = (rg.y() - rg.linear_predictor()).norm();
+
+        if (diff < 1e-14) {
+            std::cout << "  PASS: Noiseless y exactly equals linear predictor\n";
+        } else {
+            std::cerr << "  FAIL: y differs from linear predictor in noiseless case\n";
+            all_ok = false;
+        }
+    }
+
+    std::cout << "\n";
+
+    // ==================================================================
+    // Test 4: Theoretical value: η_i ≈ beta0 + c_sin * A_i
+    // ==================================================================
+    // {
+    //     std::cout << "Test 4: η_i ≈ beta0 + c_sin * A_i (due to perfect sine alignment)\n";
+
+    //     auto dg = DataGenerator::make_default();
+    //     dg.generate();
+
+    //     ResponseGenerator rg(dg.X(), T, ResponseGenerator::Config{.c_sin = 4.0, .beta0 = -1.0});
+    //     rg.generate();
+
+    //     const auto& A = dg.amplitudes();
+    //     Eigen::VectorXd expected_eta = -1.0 + 4.0 * A;
+
+    //     double rmse = std::sqrt( (rg.linear_predictor() - expected_eta).squaredNorm() / A.size() );
+
+    //     std::cout << "   RMSE from theoretical η = " << rmse << "\n";
+
+    //     if (rmse < 1e-10) {
+    //         std::cout << "  PASS: Linear predictor matches theoretical c_sin·A + beta0\n";
+    //     } else {
+    //         std::cerr << "  FAIL: Large deviation from theoretical inner product\n";
+    //         all_ok = false;
+    //     }
+    // }
+
+    // std::cout << "\n";
+
+    // ==================================================================
+    // Test 5: Noise has mean ≈ 0 and correct std
+    // ==================================================================
+    {
+        std::cout << "Test 5: Added noise has correct statistics\n";
+
+        auto dg = DataGenerator::make_default();
+        dg.generate();
+
+        ResponseGenerator::Config cfg;
+        cfg.add_noise = true;
+        cfg.noise_std = 0.15;
+        cfg.seed = 424242;
+
+        ResponseGenerator rg(dg.X(), T, cfg);
+        rg.generate();
+
+        Eigen::VectorXd noise = rg.y() - rg.linear_predictor();
+
+        double mean = noise.mean();
+        double std  = std::sqrt( noise.squaredNorm() / noise.size() );
+
+        std::cout << "   Noise mean = " << mean << "\n";
+        std::cout << "   Noise std  = " << std  << " (target 0.150000)\n";
+
+        if (std::abs(mean) < 0.02 && std::abs(std - 0.15) < 0.01) {
+            std::cout << "  PASS: Noise statistics correct\n";
+        } else {
+            std::cerr << "  FAIL: Noise mean or std out of tolerance\n";
+            all_ok = false;
+        }
+    }
+
+    std::cout << "\n";
+
+    // ==================================================================
+    // Test 6: Reproducibility with same seed
+    // ==================================================================
+    {
+        std::cout << "Test 6: Same seed → identical response\n";
+
+        auto dg = DataGenerator::make_default();
+        dg.generate();
+
+        ResponseGenerator::Config cfg{.seed = 987654};
+
+        ResponseGenerator rg1(dg.X(), T, cfg);
+        ResponseGenerator rg2(dg.X(), T, cfg);
+
+        rg1.generate();
+        rg2.generate();
+
+        double diff = (rg1.y() - rg2.y()).norm();
+
+        if (diff < 1e-12) {
+            std::cout << "  PASS: Same seed produces identical y\n";
+        } else {
+            std::cerr << "  FAIL: Different y with same seed\n";
+            all_ok = false;
+        }
+    }
+
+    // ==================================================================
+    // Final result
+    // ==================================================================
+    std::cout << "\n";
+    if (all_ok) {
+        std::cout << "ALL TESTS PASSED!\n\n";
+        return 0;
+    } else {
+        std::cout << "SOME TESTS FAILED!\n\n";
+        return 1;
+    }
 }
-
