@@ -23,212 +23,134 @@
 #include "DataGenerator.hpp"
 #include "ResponseGenerator.hpp"
 #include "PLSR.hpp"
+#include "fourier.hpp"
+#include "bspline.hpp"
+// #include "include/ResponseGenerator.hpp"
 
-using Eigen::MatrixXd;
-using Eigen::VectorXd;
-
-void new_main();
 
 // Helper functions
-double R2(const VectorXd& y_true, const VectorXd& y_pred);
-MatrixXd fourier_basis(int P, int nbasis, double period = 1.0);
-MatrixXd bspline_basis(int P, int nknots_interior, int order = 4);
+double R2(const Eigen::VectorXd& y_true, const Eigen::VectorXd& y_pred);
+// MatrixXd fourier_basis(int P, int nbasis, double period = 1.0);
+// MatrixXd bspline_basis(int P, int nknots_interior, int order = 4);
+
 
 int main() {
-    new_main();
-    return 0;
-}
-
-
-void new_main() {
     std::cout << "=== PLSR on Sinusoidal Functional Predictors ===\n";
+    std::cout << std::fixed << std::setprecision(7);
 
     // std::cout << "[DEBUG 1] Generating data...\n";
     auto dg = DataGenerator::make_default();
     dg.generate();
-    const MatrixXd& X = dg.X();
-    const VectorXd& A = dg.amplitudes();
-    const VectorXd& t = dg.t();
-
-    auto rg = ResponseGenerator::make_default(A);
-    rg.generate();
-    const VectorXd& y = rg.y();
-    const VectorXd& y_true = rg.y_true();
-
-    // std::cout << "[DEBUG 2] Centering data...\n";
-    VectorXd Xmean = X.colwise().mean();
-    MatrixXd Xc = X.rowwise() - Xmean.transpose();
-    double y_mean = y.mean();
-    VectorXd yc = y.array() - y_mean;
+    const Eigen::MatrixXd& X = dg.X();
+    // const Eigen::VectorXd& A = dg.amplitudes();
+    const Eigen::VectorXd& t = dg.t();
 
     std::cout << "Data generated: N=" << X.rows() << ", P=" << X.cols() << "\n";
 
-    std::vector<double> pls_r2;
-    VectorXd y_pred_pls_best;
-    PLSR_Result pls_res_1comp;
+    const double T = 1.0;
+    auto rg = ResponseGenerator::make_default(X, T);
+    rg.generate();
+    const Eigen::VectorXd& y = rg.y();
+    // const Eigen::VectorXd& lin_pred = rg.lin_pred();
+    const Eigen::VectorXd& beta_true = rg.beta_true();
 
-    // std::cout << "[DEBUG 3] Starting PLS loop...\n";
-	// MatrixXd Phi = fourier_basis(X.cols(), 21);  // 21 = 1 + 10 sin/cos pairs
-	// MatrixXd X_func = Xc * Phi;                  // 1000 × 21 smooth coefficients
+    PLSR_Result res = pls_nipals(X, y, 5, 1);
 
-    for (int a = 1; a <= 5; ++a) {
-        // std::cout << "[DEBUG 3." << a << "] Running PLS with " << a << " component(s)...\n";
-        PLSR_Result res = pls_nipals(Xc, yc, a);
-		// PLSR_Result res = pls_nipals(X_func, yc, a);
+    int components = res.W.cols();  // should be 1
+    std::cout << "Components extracted: " << components << "\n";
 
-        // CRITICAL FIX: Use the correct number of components for prediction
-        VectorXd y_fitted_centered = res.T.leftCols(a) * res.b.head(a);
-        VectorXd y_fitted = y_fitted_centered.array() + y_mean;
+    // Compute β_PLS = W (Pᵀ W)⁻¹ Qᵀ
+    Eigen::VectorXd beta_pls = res.W * (res.P.transpose() * res.W).ldlt().solve(res.q);
+    Eigen::VectorXd y_pred = X * beta_pls;  // because beta0 = 0
 
-        double r2 = R2(y, y_fitted);
-        pls_r2.push_back(r2);
+    double y_r2 = R2(y, y_pred);
+    std::cout << "y_true vs y_pred: R² = " << y_r2 << "\n";
 
-        std::cout << "PLS " << a << " component(s) → R² = "
-                  << std::fixed << std::setprecision(12) << r2 << "\n";
+    double beta_r2 = R2(beta_true, beta_pls);
+    std::cout << "beta_true vs beta_pls: R² = " << beta_r2 << "\n";
 
-        if (a == 1) {
-            y_pred_pls_best = y_fitted;
-            pls_res_1comp = std::move(res);
-        }
-    }
+    std::cout << "\n--- Fourier Regression Baseline (K=1) ---\n";
+    FourierRegressor fourier(T, 1);
+    fourier.fit_y(X, y, t);  // ← this is the one that works perfectly
 
-	std::cout << "\n=== CHECKING WHICH COMPONENT IS THE SINE WAVE ===\n";
-	PLSR_Result res5 = pls_nipals(Xc, yc, 5);
+    Eigen::VectorXd beta_fourier = fourier.predict_beta(t);
+    Eigen::VectorXd y_pred_fourier = X * beta_fourier;
 
-	// Check correlation of each loading with true sine
-	VectorXd true_sine = (t.array() * 2 * std::numbers::pi).sin();
+    double y_r2_fourier = R2(y, y_pred_fourier);
+    double beta_r2_fourier = R2(beta_true, beta_fourier);
 
-	for (int i = 0; i < 5; ++i) {
-		double corr = res5.P.col(i).normalized().dot(true_sine.normalized());
-		std::cout << "Component " << (i+1) 
-				<< " loading correlation with sin(2πt): " << corr << "\n";
-	}
+    std::cout << "y_true vs y_pred (Fourier): R² = " << y_r2_fourier << "\n";
+    std::cout << "beta_true vs beta_fourier: R² = " << beta_r2_fourier << "\n";
 
-    // std::cout << "[DEBUG 4] PLS loop finished successfully.\n";
+    std::cout << "Fourier intercept (β₀)   : " << fourier.intercept() << "\n";
+    std::cout << "Fourier sin coeff (k=1)  : " << fourier.sin_coeff(1) << "\n";
 
-    // std::cout << "[DEBUG 5] Writing data.txt and loadings.txt...\n";
+    std::cout << "\n--- B-Spline Regression Baseline (15 interior knots) ---\n";
+    BSplineRegressor bspline(15, 3);  // cubic, 15 interior knots → very flexible
+    bspline.fit_y(X, y, t);
+
+    Eigen::VectorXd beta_bs = bspline.predict_beta(t);
+    Eigen::VectorXd y_pred_bs = X * beta_bs;
+
+    double y_r2_bs = R2(y, y_pred_bs);
+    double beta_r2_bs = R2(beta_true, beta_bs);
+
+    std::cout << "y_true vs y_pred (B-Spline): R² = " << y_r2_bs << "\n";
+    std::cout << "beta_true vs beta_bs: R² = " << beta_r2_bs << "\n";
+
+    // Optional: pretty summary
+    // std::cout << fourier.summary();
+
+    // ==================================================================
+    // Final comparison summary
+    // ==================================================================
+    std::cout << "\n=== FINAL COMPARISON ===\n";
+    std::cout << "Method       | R²(y)     | R²(β)\n";
+    std::cout << "-------------|-----------|-----------\n";
+    std::cout << "PLSR         | " << std::setw(8) << y_r2
+              << " | " << std::setw(8) << beta_r2 << "\n";
+    std::cout << "Fourier (K=1)| " << std::setw(8) << y_r2_fourier
+              << " | " << std::setw(8) << beta_r2_fourier << "\n";
+    std::cout << "B-Spline     | " << std::setw(8) << y_r2_bs
+              << " | " << std::setw(8) << beta_r2_bs << "\n";
+
     {
-        std::ofstream out("results/data.txt");
+        std::ofstream out("results/response.txt");
         out << std::scientific << std::setprecision(12);
-		out << "y_true y_pred\n";
-        for (int i = 0; i < y.size(); ++i)
-            out << y_true(i) << " " << y_pred_pls_best(i) << "\n";
-    }
-    {
-        std::ofstream out("results/loadings.txt");
-		out << "t true_beta pls_loading\n";
-        for (int j = 0; j < t.size(); ++j) {
-            double true_sine = std::sin(2.0 * std::numbers::pi * t(j));
-            out << t(j) << " " << true_sine << " " << pls_res_1comp.P.col(0)(j) << "\n";
+        out << "y_true y_pls y_fourier y_bspline\n";
+
+        for (int i = 0; i < y.size(); ++i) {
+            double yp_pls     = (X.row(i) * beta_pls).value();
+            double yp_fourier = (X.row(i) * beta_fourier).value();
+            double yp_bspline = (X.row(i) * beta_bs).value();
+
+            out << y(i) << " "
+                << yp_pls << " "
+                << yp_fourier << " "
+                << yp_bspline << "\n";
         }
     }
-    // std::cout << "[DEBUG 6] Files written.\n";
 
-    // std::cout << "[DEBUG 7] Starting OLS...\n";
-    double r2_ols_raw = -999;
-    try {
-        VectorXd beta_ols_raw = (Xc.transpose() * Xc).ldlt().solve(Xc.transpose() * yc);
-        VectorXd y_pred = Xc * beta_ols_raw + y_mean * VectorXd::Ones(y.size());
-        r2_ols_raw = R2(y, y_pred);
-        // std::cout << "[DEBUG 8] OLS done. R² = " << r2_ols_raw << "\n";
-    } catch (...) {
-        std::cout << "OLS on raw X failed (as expected)\n";
+    {
+        std::ofstream out("results/coef_functions.txt");
+        out << std::scientific << std::setprecision(12);
+        out << "t beta_true beta_pls beta_fourier beta_bspline\n";
+
+        for (int j = 0; j < t.size(); ++j) {
+            out << t(j) << " "
+                << beta_true(j) << " "
+                << beta_pls(j) << " "
+                << beta_fourier(j) << " "
+                << beta_bs(j) << "\n";
+        }
     }
 
-    // std::cout << "[DEBUG 9] Starting Fourier basis...\n";
-    int nbasis_fourier = 9;
-    MatrixXd Phi_f = fourier_basis(X.cols(), nbasis_fourier);
-    MatrixXd X_fourier = Xc * Phi_f;
-    MatrixXd coef_f = (X_fourier.transpose() * X_fourier).ldlt().solve(X_fourier.transpose() * yc);
-    VectorXd y_pred_f = X_fourier * coef_f + y_mean * VectorXd::Ones(y.size());
-    double r2_fourier = R2(y, y_pred_f);
-    // std::cout << "[DEBUG 10] Fourier done. R² = " << r2_fourier << "\n";
-
-    // std::cout << "[DEBUG 11] Starting B-spline basis...\n";
-    MatrixXd Phi_b = bspline_basis(X.cols(), 12, 4);
-    // std::cout << "[DEBUG 12] B-spline basis created successfully!\n";
-
-    MatrixXd X_bs = Xc * Phi_b;
-    // std::cout << "[DEBUG 13] Projected onto B-spline basis\n";
-
-    MatrixXd coef_b = (X_bs.transpose() * X_bs).ldlt().solve(X_bs.transpose() * yc);
-    // std::cout << "[DEBUG 14] B-spline coefficients solved\n";
-
-    VectorXd y_pred_b = X_bs * coef_b + y_mean * VectorXd::Ones(y.size());
-    // std::cout << "[DEBUG 15] B-spline predictions done\n";
-
-    double r2_bspline = R2(y, y_pred_b);
-    // std::cout << "[DEBUG 16] B-spline R² computed: " << r2_bspline << "\n";
-
-    // std::cout << "[DEBUG 17] Writing comparison table...\n";
-    std::ofstream comp("results/comparison.txt");
-    comp << std::fixed << std::setprecision(12);
-    comp << "Method & Components / Basis size & $R^2$ \\\\\\hline\n";
-    comp << "PLS (1 comp) & 1 & " << pls_r2[0] << " \\\\\n";
-    comp << "PLS (5 comp) & 5 & " << pls_r2[4] << " \\\\\n";
-    comp << "OLS raw X & " << X.cols() << " & " << (r2_ols_raw > -100 ? std::to_string(r2_ols_raw) : "failed") << " \\\\\n";
-    comp << "Fourier basis & " << nbasis_fourier << " & " << r2_fourier << " \\\\\n";
-    comp << "B-spline (cubic) & 16 & " << r2_bspline << " \\\\\\hline\n";
-
-    std::cout << "\n=== FINAL RESULTS ===\n";
-    std::cout << "PLS 1 component  → R² = " << pls_r2[0] << "\n";
-    std::cout << "Fourier (9 basis) → R² = " << r2_fourier << "\n";
-    std::cout << "B-spline (16)     → R² = " << r2_bspline << "\n";
-
-	// Save Fourier and B-spline coefficient functions for plotting
-	{
-		std::ofstream f("results/fourier_coefs.txt");
-		f << "t true_beta fourier_beta\n";
-		for (int j = 0; j < t.size(); ++j)
-			f << t(j) << " " << std::sin(2*M_PI*t(j)) << " " 
-			<< (Phi_f.row(j) * coef_f) << "\n";
-	}
-
-	{
-		std::ofstream b("results/bspline_coefs.txt");
-		b << "t true_beta bspline_beta\n";
-		for (int j = 0; j < t.size(); ++j)
-			b << t(j) << " " << std::sin(2*M_PI*t(j)) << " " 
-			<< (Phi_b.row(j) * coef_b) << "\n";
-	}
+    return 0;
 }
 
-double R2(const VectorXd& y_true, const VectorXd& y_pred) {
+
+double R2(const Eigen::VectorXd& y_true, const Eigen::VectorXd& y_pred) {
     double ss_res = (y_true - y_pred).squaredNorm();
     double ss_tot = (y_true.array() - y_true.mean()).square().sum();
     return 1.0 - ss_res / ss_tot;
-}
-
-MatrixXd fourier_basis(int P, int nbasis, double period) {
-    if (nbasis % 2 == 0) ++nbasis;
-    MatrixXd phi(P, nbasis);
-    VectorXd t = VectorXd::LinSpaced(P, 0.0, period);
-    double omega = 2 * std::numbers::pi / period;
-    phi.col(0).setConstant(0.7071067811865475);
-    for (int k = 1; k <= (nbasis-1)/2; ++k) {
-        phi.col(2*k-1) = (omega * k * t.array()).sin();
-        phi.col(2*k)   = (omega * k * t.array()).cos();
-    }
-    return phi;
-}
-
-MatrixXd bspline_basis(int P, int nknots_interior, int order) {
-    int nbasis = nknots_interior + order;
-    MatrixXd B = MatrixXd::Zero(P, nbasis);
-    VectorXd t = VectorXd::LinSpaced(P, 0.0, 1.0);
-    double h = 1.0 / nknots_interior;
-
-    for (int i = 0; i < P; ++i) {
-        double x = t(i);
-        int j0 = std::max(0, static_cast<int>(x/h) - order + 1);
-        int j1 = std::min(nbasis, static_cast<int>(x/h) + 1);
-        for (int j = j0; j < j1; ++j) {
-            double c = x/h - j;
-            double ac = std::abs(c);
-            if (ac < 1) B(i,j) = (4.0 + 3.0*ac*(ac*ac - 4.0))/6.0;
-            else if (ac < 2) B(i,j) = (8.0 - 3.0*ac*(ac*ac - 4.0))/6.0;
-            else if (ac < 3) B(i,j) = std::pow(3.0 - ac, 3)/6.0;
-        }
-    }
-    return B;
 }
