@@ -31,6 +31,27 @@ add_executable(main main.cpp
     src/DataGenerator.cpp
     src/ResponseGenerator.cpp
     src/PLSR.cpp
+    src/fourier.cpp
+    src/bspline.cpp
 )
 target_include_directories(main PRIVATE include)
 target_link_libraries(main PRIVATE Eigen3::Eigen)
+
+add_executable(test_Fourier
+    tests/test_fourier.cpp
+    src/DataGenerator.cpp
+    src/ResponseGenerator.cpp
+    src/fourier.cpp
+)
+target_include_directories(test_Fourier PRIVATE include)
+target_link_libraries(test_Fourier PRIVATE Eigen3::Eigen)
+
+add_executable(test_Bspline
+    tests/test_bspline.cpp
+    src/DataGenerator.cpp
+    src/ResponseGenerator.cpp
+    src/bspline.cpp
+)
+target_include_directories(test_Bspline PRIVATE include)
+target_link_libraries(test_Bspline PRIVATE Eigen3::Eigen)
+

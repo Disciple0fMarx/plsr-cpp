@@ -30,7 +30,9 @@ test tests: build
 	@echo "=== Running all tests ==="
 	@./build/test_DataGenerator && \
 	 ./build/test_ResponseGenerator && \
-	 ./build/test_PLSR
+	 ./build/test_PLSR && \
+	 ./build/test_Fourier && \
+	 ./build/test_Bspline
 
 # Individual tests (optional)
 test-data: build
@@ -41,6 +43,12 @@ test-response: build
 
 test-plsr: build
 	@./build/test_PLSR
+
+test-fourier: build
+	@./build/test_Fourier
+
+test-bspline: build
+	@./build/test_Bspline
 
 # Clean build directory (your old friend)
 clean:
