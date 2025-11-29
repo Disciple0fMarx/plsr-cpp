@@ -25,7 +25,7 @@ This creates a **strong linear relationship** which **PLSR recovers with just 1�
 - Modern C++20 + Eigen3 (header-only dependency)
 - Classic NIPALS PLS1 implementation (Wold et al., 1984)
 - Reproducible synthetic functional data (B-spline/Fourier-ready structure)
-- Nonlinear response via sigmoid link
+- Linear response
 - Full Doxygen documentation with LaTeX formulas
 - Cross-platform: Linux • macOS • Windows (MSVC, Clang, GCC)
 - Extremely simple build system (just a smart Makefile wrapper around CMake)
@@ -39,6 +39,8 @@ plsr-cpp/
 ├── include/
 │ ├── DataGenerator.hpp
 │ ├── ResponseGenerator.hpp 
+│ ├── fourier.hpp 
+│ ├── bspline.hpp 
 │ └── PLSR.hpp 
 ├── src/ ← implementations 
 ├── tests/ ← unit tests 
@@ -113,11 +115,8 @@ After running `make go` or `./build/main` you will get:
 
 ```
 results/
-├── data.txt              ← X matrix (first few rows)
-├── bspline_coefs.txt     ← (placeholder for future basis coefficients)
-├── fourier_coefs.txt     ← (placeholder)
-├── loadings.txt          ← PLS weights/loadings
-└── comparison.txt        ← True A vs recovered scores, R², etc.
+├── response.txt
+└── coef_functions.txt
 ```
 
 ## Authors
@@ -128,7 +127,7 @@ Main contributions: PLSR algorithm, project architecture, main integration and b
 
 **Malek Rihani** \
 *malek.rihani090@gmail.com* \
-Main contributions: Functional data and nonlinear response generators
+Main contributions: Functional data and linear response generators
 
 Academic year 2025-2026 \
 M. Sc. in Data Science and Information Retrieval \
