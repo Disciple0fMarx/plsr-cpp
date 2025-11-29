@@ -14,7 +14,7 @@ Makefile
 
 # Executables and object files
 main
-test_*
+# test_*
 *.exe
 *.out
 *.app
