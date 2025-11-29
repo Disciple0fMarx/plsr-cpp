@@ -4,7 +4,7 @@
 
 A clean, fast, and fully documented C++20 implementation of the **NIPALS PLS1 algorithm** applied to **functional data**, developed as part of the course *Statistics and Data Analysis* — M. Sc. in Data Science and Information Retrieval.
 
-Includes realistic synthetic data generation (amplitude-modulated sine waves), a challenging **nonlinear response model** (sigmoid link), and a complete simulation study framework.
+Includes realistic synthetic data *amplitude-modulated sine waves) and linear response generation, and a complete simulation study framework.
 
 Perfect for teaching, research, benchmarking, or extending to real functional datasets (spectroscopy, chemometrics, FDA, etc.).
 
@@ -16,10 +16,9 @@ $$X_i(t_j) = A_i \cdot \sin(2\pi t_j) + \varepsilon_{ij}, \quad t_j \in [0,1], \
 
 with latent amplitude $A_i \sim \mathcal{U}[0.5, 2.5]$, and a scalar response  
 
-$$y_i = \sigma(\beta_0 + \beta_1 A_i) + \delta_i$$  
+$$y_i = \beta_0 + \sum_{j=0}^{P-1} \beta_i(t_j) X_i(t_j) + \delta_i$$  
 
-where $\sigma$ is the logistic sigmoid.  
-This creates a **strong but nonlinear relationship** that ordinary least squares and PCA fail to capture efficiently — while **PLSR recovers it with just 1–2 components**.
+This creates a **strong linear relationship** which **PLSR recovers with just 1–2 components**.
 
 ## Features
 
